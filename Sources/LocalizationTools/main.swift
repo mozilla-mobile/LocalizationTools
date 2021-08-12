@@ -47,8 +47,8 @@ struct LocalizationTools: ParsableCommand {
         }
         
         if runExportTask {
-//            ExportTask(xcodeProjPath: projectPath, l10nRepoPath: l10nProjectPath).run()
-//            CreateTemplatesTask(l10nRepoPath: l10nProjectPath).run()
+            ExportTask(xcodeProjPath: projectPath, l10nRepoPath: l10nProjectPath).run()
+            CreateTemplatesTask(l10nRepoPath: l10nProjectPath).run()
         }
     }
 }
