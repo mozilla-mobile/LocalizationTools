@@ -5,6 +5,7 @@ import PackageDescription
 
 let package = Package(
     name: "LocalizationTools",
+    platforms: [.macOS(.v11)],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser", from: "0.4.0")
     ],
