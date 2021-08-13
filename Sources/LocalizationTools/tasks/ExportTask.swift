@@ -103,6 +103,7 @@ struct ExportTask {
 
     
     private let queue = DispatchQueue(label: "backgroundQueue", attributes: .concurrent)
+    private let group = DispatchGroup()
 
     private let EXCLUDED_TRANSLATIONS: Set<String> = ["CFBundleName", "CFBundleDisplayName", "CFBundleShortVersionString", "1Password Fill Browser Action"]
     private let REQUIRED_TRANSLATIONS: Set<String> = [
@@ -198,12 +199,15 @@ struct ExportTask {
             } ?? [:]
         
         locales.forEach { locale in
+            group.enter()
             queue.async {
                 handleXML(path: EXPORT_BASE_PATH, locale: locale, commentOverrides: commentOverrides)
                 copyToL10NRepo(locale: locale)
+                group.leave()
             }
         }
-
+        
+        group.wait()
         print(xcodeProjPath, l10nRepoPath, locales)
     }
 }
