@@ -11,10 +11,10 @@ private let generateManifest: (String) -> String = { targetLocale in
           "project" : "Client.xcodeproj",
           "targetLocale" : "\(targetLocale)",
           "toolInfo" : {
-            "toolBuildNumber" : "12E262",
+            "toolBuildNumber" : "13A233",
             "toolID" : "com.apple.dt.xcode",
             "toolName" : "Xcode",
-            "toolVersion" : "12.5"
+            "toolVersion" : "13.0"
           },
           "version" : "1.0"
         }
@@ -28,7 +28,7 @@ struct ImportTask {
 
     private let temporaryDir = FileManager.default.temporaryDirectory.appendingPathComponent("locales_to_import")
 
-    // Pontoon has slightly different keys than Xcode for a handful of locales.
+    /// This dictionary holds locale mappings between `[XCodeLocaleCode: PontoonLocaleCode]`.
     private let LOCALE_MAPPING = [
         "es-ES": "es",
         "ga-IE": "ga",
@@ -43,7 +43,7 @@ struct ImportTask {
     // We don't want to expose these to our localization team
     private let EXCLUDED_TRANSLATIONS: Set<String> = ["CFBundleName", "CFBundleDisplayName", "CFBundleShortVersionString"]
 
-    // InfoPlist.strings requre these keys to have content or the application will crash
+    // InfoPlist.strings require these keys to have content or the application will crash
     private let REQUIRED_TRANSLATIONS: Set<String> = [
         "NSCameraUsageDescription",
         "NSLocationWhenInUseUsageDescription",
