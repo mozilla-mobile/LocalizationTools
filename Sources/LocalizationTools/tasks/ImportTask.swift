@@ -36,7 +36,6 @@ struct ImportTask {
         "nn-NO": "nn",
         "sv-SE": "sv",
         "tl"   : "fil",
-        "zgh"  : "tzm",
         "sat"  : "sat-Olck"
     ]
 
