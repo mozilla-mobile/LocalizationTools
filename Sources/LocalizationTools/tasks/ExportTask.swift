@@ -95,11 +95,11 @@ struct ExportTask {
                              "th",
                              "tr",
                              "tt",
-                             "tzm",
                              "uk",
                              "ur",
                              "uz",
                              "vi",
+                             "zgh",
                              "zh-CN",
                              "zh-TW"]
     
@@ -124,7 +124,6 @@ struct ExportTask {
         "nn" : "nn-NO",
         "sv" : "sv-SE",
         "fil" : "tl",
-        "tzm" : "zgh",
         "sat-Olck" : "sat",
     ]
     
