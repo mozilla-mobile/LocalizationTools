@@ -11,6 +11,9 @@ struct LocalizationTools: ParsableCommand {
     
     @Option(name: .customLong("l10n-project-path"), help: "Path to the l10n project")
     var l10nProjectPath: String
+	
+    @Option(name: .customLong("locale"), help: "Locale code for single locale import/export")
+    var localeCode: String?	
     
     @Flag(name: .customLong("export"), help: "To determine if we should run the export task.")
     var runExportTask = false
@@ -38,17 +41,31 @@ struct LocalizationTools: ParsableCommand {
     mutating func run() throws {
         guard validateArguments() else { Self.exit() }
         
-        let shippingLocales = URL(fileURLWithPath: projectPath).deletingLastPathComponent().appendingPathComponent("shipping_locales.txt")
-        let locales = try! String(contentsOf: shippingLocales).components(separatedBy: .newlines).filter { !$0.isEmpty }
+        var locales: [String]
 
-
+        if localeCode != nil {
+            locales = [ localeCode! ]
+        } else {
+            let directoryContent = try FileManager.default.contentsOfDirectory(at: URL(fileURLWithPath: l10nProjectPath), includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
+            let folders = directoryContent.filter{ $0.hasDirectoryPath }
+            locales = []
+            for f in folders {
+                locales.append(f.pathComponents.last!)
+            }
+            locales = locales.filter{ $0 != "templates" }
+            locales.sort()
+        }
+            
         if runImportTask {
             ImportTask(xcodeProjPath: projectPath, l10nRepoPath: l10nProjectPath, locales: locales).run()
         }
         
         if runExportTask {
-            ExportTask(xcodeProjPath: projectPath, l10nRepoPath: l10nProjectPath).run()
-            CreateTemplatesTask(l10nRepoPath: l10nProjectPath).run()
+            ExportTask(xcodeProjPath: projectPath, l10nRepoPath: l10nProjectPath, locales: locales).run()
+			/// Don't extract templates if only one locale was requested
+			if localeCode == nil {
+            	CreateTemplatesTask(l10nRepoPath: l10nProjectPath).run()
+			}
         }
     }
 }
