@@ -52,7 +52,7 @@ struct ImportTask {
         "ShortcutItemTitleNewTab",
         "ShortcutItemTitleQRCode",
     ]
-    
+
     func createXcloc(locale: String) -> URL {
         let source = URL(fileURLWithPath: "\(l10nRepoPath)/\(locale)/firefox-ios.xliff")
         let locale = LOCALE_MAPPING[locale] ?? locale
@@ -60,16 +60,16 @@ struct ImportTask {
         let destination = temporaryDir.appendingPathComponent("\(locale).xcloc/Localized Contents/\(locale).xliff")
         let sourceContentsDestination = temporaryDir.appendingPathComponent("\(locale).xcloc/Source Contents/temp.txt")
         let manifestDestination = temporaryDir.appendingPathComponent("\(locale).xcloc/contents.json")
-    
+
         let fileExists = FileManager.default.fileExists(atPath: tmp.path)
         let destinationExists = FileManager.default.fileExists(atPath: destination.deletingLastPathComponent().path)
-        
+
         if fileExists {
             try! FileManager.default.removeItem(at: tmp)
         }
-        
+
         try! FileManager.default.copyItem(at: source, to: tmp)
-        
+
         if !destinationExists {
             try! FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
             try! FileManager.default.createDirectory(at: sourceContentsDestination, withIntermediateDirectories: true)
@@ -78,17 +78,17 @@ struct ImportTask {
         try! generateManifest(LOCALE_MAPPING[locale] ?? locale).write(to: manifestDestination, atomically: true, encoding: .utf8)
         return try! FileManager.default.replaceItemAt(destination, withItemAt: tmp)!
     }
-    
+
     func validateXml(fileUrl: URL, locale: String) {
         let xml = try! XMLDocument(contentsOf: fileUrl, options: .nodePreserveWhitespace)
         guard let root = xml.rootElement() else { return }
         let fileNodes =  try! root.nodes(forXPath: "file")
-        
+
         for case let fileNode as XMLElement in fileNodes {
             if let xcodeLocale = LOCALE_MAPPING[locale] {
                 fileNode.attribute(forName: "target-language")?.setStringValue(xcodeLocale, resolvingEntities: false)
             }
-            
+
             var translations = try! fileNode.nodes(forXPath: "body/trans-unit")
             for case let translation as XMLElement in translations {
                 if translation.attribute(forName: "id")?.stringValue.map(EXCLUDED_TRANSLATIONS.contains) == true {
@@ -108,10 +108,10 @@ struct ImportTask {
                 fileNode.detach()
             }
         }
-        
+
         try! xml.xmlString(options: .nodePrettyPrint).write(to: fileUrl, atomically: true, encoding: .utf16)
     }
-    
+
     private func importLocale(xclocPath: URL) {
         let command = "xcodebuild -importLocalizations -project \(xcodeProjPath) -localizationPath \(xclocPath.path)"
 
@@ -121,7 +121,7 @@ struct ImportTask {
         try! task.run()
         task.waitUntilExit()
     }
-    
+
     private func prepareLocale(locale: String) {
         let xliffUrl = createXcloc(locale: locale)
         validateXml(fileUrl: xliffUrl, locale: locale)
