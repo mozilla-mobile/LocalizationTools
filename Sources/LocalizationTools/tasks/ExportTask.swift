@@ -13,15 +13,6 @@ struct ExportTask {
     private let group = DispatchGroup()
 
     private let EXCLUDED_TRANSLATIONS: Set<String> = ["CFBundleName", "CFBundleDisplayName", "CFBundleShortVersionString", "1Password Fill Browser Action"]
-    private let REQUIRED_TRANSLATIONS: Set<String> = [
-        "NSCameraUsageDescription",
-        "NSLocationWhenInUseUsageDescription",
-        "NSMicrophoneUsageDescription",
-        "NSPhotoLibraryAddUsageDescription",
-        "ShortcutItemTitleNewPrivateTab",
-        "ShortcutItemTitleNewTab",
-        "ShortcutItemTitleQRCode",
-    ]
 
     /// This dictionary holds locale mappings between `[PontoonLocaleCode: XCodeLocaleCode]`.
     private let LOCALE_MAPPING = [

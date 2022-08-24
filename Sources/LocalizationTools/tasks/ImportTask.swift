@@ -36,14 +36,16 @@ struct ImportTask {
         "nn-NO": "nn",
         "sv-SE": "sv",
         "tl"   : "fil",
-        "sat"  : "sat-Olck"
+        "sat"  : "sat-Olck",
     ]
 
     // We don't want to expose these to our localization team
     private let EXCLUDED_TRANSLATIONS: Set<String> = ["CFBundleName", "CFBundleDisplayName", "CFBundleShortVersionString"]
 
-    // InfoPlist.strings require these keys to have content or the application will crash
+    // Application will crash without the IDs in Info.plist
+    // App Store requires strings in WidgetKit
     private let REQUIRED_TRANSLATIONS: Set<String> = [
+        /// Client/Info.plist
         "NSCameraUsageDescription",
         "NSLocationWhenInUseUsageDescription",
         "NSMicrophoneUsageDescription",
@@ -51,6 +53,23 @@ struct ImportTask {
         "ShortcutItemTitleNewPrivateTab",
         "ShortcutItemTitleNewTab",
         "ShortcutItemTitleQRCode",
+        /// WidgetKit/en-US.lproj/WidgetIntents.strings
+		"2GqvPe",
+		"ctDNmu",
+		"eHmH1H",
+		"eqyNJg",
+		"eV8mOT",
+		"fi3W24-2GqvPe",
+		"fi3W24-eHmH1H",
+		"fi3W24-scEmjs",
+		"fi3W24-xRJbBP",
+		"PzSrmZ-2GqvPe",
+		"PzSrmZ-eHmH1H",
+		"PzSrmZ-scEmjs",
+		"PzSrmZ-xRJbBP",
+		"scEmjs",
+		"w9jdPK",
+		"xRJbBP",
     ]
 
     func createXcloc(locale: String) -> URL {
