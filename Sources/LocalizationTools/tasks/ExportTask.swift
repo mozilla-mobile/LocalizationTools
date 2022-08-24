@@ -8,21 +8,12 @@ struct ExportTask {
     let xcodeProjPath: String
     let l10nRepoPath: String
     let locales: [String]
-    
+
     private let queue = DispatchQueue(label: "backgroundQueue", attributes: .concurrent)
     private let group = DispatchGroup()
 
     private let EXCLUDED_TRANSLATIONS: Set<String> = ["CFBundleName", "CFBundleDisplayName", "CFBundleShortVersionString", "1Password Fill Browser Action"]
-    private let REQUIRED_TRANSLATIONS: Set<String> = [
-        "NSCameraUsageDescription",
-        "NSLocationWhenInUseUsageDescription",
-        "NSMicrophoneUsageDescription",
-        "NSPhotoLibraryAddUsageDescription",
-        "ShortcutItemTitleNewPrivateTab",
-        "ShortcutItemTitleNewTab",
-        "ShortcutItemTitleQRCode",
-    ]
-    
+
     /// This dictionary holds locale mappings between `[PontoonLocaleCode: XCodeLocaleCode]`.
     private let LOCALE_MAPPING = [
         "ga" : "ga-IE",
@@ -32,10 +23,10 @@ struct ExportTask {
         "fil" : "tl",
         "sat-Olck" : "sat",
     ]
-    
+
     private let EXPORT_BASE_PATH = "/tmp/ios-localization"
-    
-    
+
+
     private func exportLocales() {
         let command = "xcodebuild -exportLocalizations -project \(xcodeProjPath) -localizationPath \(EXPORT_BASE_PATH)"
         let command2 = locales
@@ -47,7 +38,7 @@ struct ExportTask {
         try! task.run()
         task.waitUntilExit()
     }
-    
+
     private func handleXML(path: String, locale: String, commentOverrides: [String : String]) {
         let url = URL(fileURLWithPath: path.appending("/\(locale).xcloc/Localized Contents/\(locale).xliff"))
         let xml = try! XMLDocument(contentsOf: url, options: [.nodePreserveWhitespace, .nodeCompactEmptyElement])
@@ -57,22 +48,22 @@ struct ExportTask {
             if let xcodeLocale = LOCALE_MAPPING[locale] {
                 fileNode.attribute(forName: "target-language")?.setStringValue(xcodeLocale, resolvingEntities: false)
             }
-            
+
             let translations = try! fileNode.nodes(forXPath: "body/trans-unit")
             for case let translation as XMLElement in translations {
                 if translation.attribute(forName: "id")?.stringValue.map(EXCLUDED_TRANSLATIONS.contains) == true {
                     translation.detach()
                 }
-                
+
                 if let comment = translation.attribute(forName: "id")?.stringValue.flatMap({ commentOverrides[$0] }) {
                     if let element = try? translation.nodes(forXPath: "note").first {
                         element.setStringValue(comment, resolvingEntities: true)
                     }
                 }
             }
-            
+
             let remainingTranslations = try! fileNode.nodes(forXPath: "body/trans-unit")
-            
+
             if remainingTranslations.isEmpty {
                 fileNode.detach()
             }
@@ -80,8 +71,8 @@ struct ExportTask {
 
         try! xml.xmlString.write(to: url, atomically: true, encoding: .utf8)
     }
-    
-    
+
+
     private func copyToL10NRepo(locale: String) {
         let source = URL(fileURLWithPath: "\(EXPORT_BASE_PATH)/\(locale).xcloc/Localized Contents/\(locale).xliff")
         let l10nLocale: String
@@ -94,7 +85,7 @@ struct ExportTask {
         _ = try! FileManager.default.replaceItemAt(destination, withItemAt: source)
     }
 
-    
+
     func run() {
         exportLocales()
         let commentOverrideURL = URL(fileURLWithPath: xcodeProjPath).deletingLastPathComponent().appendingPathComponent("l10n_comments.txt")
@@ -105,7 +96,7 @@ struct ExportTask {
                 guard let key = items.first, let value = items.last else { return }
                 result[String(key)] = String(value)
             } ?? [:]
-        
+
         locales.forEach { locale in
             group.enter()
             queue.async {
@@ -114,7 +105,7 @@ struct ExportTask {
                 group.leave()
             }
         }
-        
+
         group.wait()
         print(xcodeProjPath, l10nRepoPath, locales)
     }
