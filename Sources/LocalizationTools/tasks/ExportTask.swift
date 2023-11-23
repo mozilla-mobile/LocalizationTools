@@ -88,7 +88,7 @@ struct ExportTask {
 
     func run() {
         exportLocales()
-        let commentOverrideURL = URL(fileURLWithPath: xcodeProjPath).deletingLastPathComponent().appendingPathComponent("l10n_comments.txt")
+        let commentOverrideURL = URL(fileURLWithPath: xcodeProjPath).deletingLastPathComponent().appendingPathComponent("firefox-ios/l10n_comments.txt")
         let commentOverrides: [String : String] = (try? String(contentsOf: commentOverrideURL))?
             .split(whereSeparator: \.isNewline)
             .reduce(into: [String : String]()) { result, item in
