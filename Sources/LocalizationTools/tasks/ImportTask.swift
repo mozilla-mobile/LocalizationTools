@@ -7,7 +7,7 @@ import Foundation
 private let generateManifest: (String) -> String = { targetLocale in
     return """
         {
-          "developmentRegion" : "en",
+          "developmentRegion" : "en-US",
           "project" : "Client.xcodeproj",
           "targetLocale" : "\(targetLocale)",
           "toolInfo" : {
