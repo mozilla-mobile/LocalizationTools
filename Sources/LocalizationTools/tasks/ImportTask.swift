@@ -36,6 +36,7 @@ struct ImportTask {
         "sv-SE": "sv",
         "tl"   : "fil",
         "sat"  : "sat-Olck",
+        "zgh"  : "tzm",
     ]
 
     // We don't want to expose these to our localization team
