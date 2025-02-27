@@ -30,7 +30,6 @@ struct ImportTask {
 
     /// This dictionary holds locale mappings between `[XCodeLocaleCode: PontoonLocaleCode]`.
     private let LOCALE_MAPPING = [
-        "es-ES": "es",
         "ga-IE": "ga",
         "nb-NO": "nb",
         "nn-NO": "nn",
