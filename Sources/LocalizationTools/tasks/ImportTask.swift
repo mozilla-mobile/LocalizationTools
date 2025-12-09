@@ -41,6 +41,7 @@ struct ImportTask {
 
     // We don't want to expose these to our localization team
     private let EXCLUDED_TRANSLATIONS: Set<String> = ["CFBundleName", "CFBundleDisplayName", "CFBundleShortVersionString"]
+    private let ALLOWED_CFBUNDLE_DISPLAY_NAME_FILES: Set<String> = ["ActionExtension"]
 
     // Application will crash without the IDs in Info.plist
     // App Store requires strings in WidgetKit
@@ -108,9 +109,22 @@ struct ImportTask {
                 fileNode.attribute(forName: "target-language")?.setStringValue(xcodeLocale, resolvingEntities: false)
             }
 
+            let fileOriginal = fileNode.attribute(forName: "original")?.stringValue ?? ""
+            let isActionExtensionFile = fileOriginal.contains("Extensions/ActionExtension") && 
+                                       fileOriginal.contains("InfoPlist.strings")
+            
             var translations = try! fileNode.nodes(forXPath: "body/trans-unit")
             for case let translation as XMLElement in translations {
-                if translation.attribute(forName: "id")?.stringValue.map(EXCLUDED_TRANSLATIONS.contains) == true {
+                let translationId = translation.attribute(forName: "id")?.stringValue
+                
+                let shouldExclude: Bool
+                if let id = translationId, id == "CFBundleDisplayName" && isActionExtensionFile {
+                    shouldExclude = false
+                } else {
+                    shouldExclude = translationId.map(EXCLUDED_TRANSLATIONS.contains) == true
+                }
+                
+                if shouldExclude {
                     translation.detach()
                 }
                 if translation.attribute(forName: "id")?.stringValue.map(REQUIRED_TRANSLATIONS.contains) == true {
