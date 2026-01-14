@@ -13,12 +13,23 @@ struct CreateTemplatesTask {
     let l10nRepoPath: String
 
     /// Copies the en-US XLIFF file to the templates directory.
-    private func copyEnLocaleToTemplates() {
+    /// - Throws: `LocalizationError` if file operations fail
+    private func copyEnLocaleToTemplates() throws {
         let source = URL(fileURLWithPath: "\(l10nRepoPath)/en-US/firefox-ios.xliff")
         let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("temp.xliff")
         let destination = URL(fileURLWithPath: "\(l10nRepoPath)/templates/firefox-ios.xliff")
-        try! FileManager.default.copyItem(at: source, to: tmp)
-        _ = try! FileManager.default.replaceItemAt(destination, withItemAt: tmp)
+
+        do {
+            try FileManager.default.copyItem(at: source, to: tmp)
+        } catch {
+            throw LocalizationError.fileCopyFailed(source: source.path, destination: tmp.path, underlyingError: error)
+        }
+
+        do {
+            _ = try FileManager.default.replaceItemAt(destination, withItemAt: tmp)
+        } catch {
+            throw LocalizationError.fileReplaceFailed(path: destination.path, underlyingError: error)
+        }
     }
 
     /// Removes target-language attributes and target elements from the template XLIFF.
@@ -26,24 +37,45 @@ struct CreateTemplatesTask {
     /// This transforms the file from a completed translation to a blank template:
     /// - Removes `target-language` attribute from each `<file>` element
     /// - Removes all `<target>` elements, leaving only `<source>` and `<note>`
+    /// - Throws: `LocalizationError` if XML parsing or file operations fail
     private func handleXML() throws {
         let url = URL(fileURLWithPath: "\(l10nRepoPath)/templates/firefox-ios.xliff")
-        let xml = try! XMLDocument(contentsOf: url, options: .nodePreserveWhitespace)
+
+        let xml: XMLDocument
+        do {
+            xml = try XMLDocument(contentsOf: url, options: .nodePreserveWhitespace)
+        } catch {
+            throw LocalizationError.xmlParsingFailed(path: url.path, underlyingError: error)
+        }
 
         guard let root = xml.rootElement() else { return }
 
-        try root.nodes(forXPath: "file").forEach { node in
-            guard let node = node as? XMLElement else { return }
-            node.removeAttribute(forName: "target-language")
+        do {
+            try root.nodes(forXPath: "file").forEach { node in
+                guard let node = node as? XMLElement else { return }
+                node.removeAttribute(forName: "target-language")
+            }
+        } catch {
+            throw LocalizationError.xpathQueryFailed(xpath: "file", underlyingError: error)
         }
 
-        try root.nodes(forXPath: "file/body/trans-unit/target").forEach { $0.detach() }
-        try xml.xmlString.write(to: url, atomically: true, encoding: .utf8)
+        do {
+            try root.nodes(forXPath: "file/body/trans-unit/target").forEach { $0.detach() }
+        } catch {
+            throw LocalizationError.xpathQueryFailed(xpath: "file/body/trans-unit/target", underlyingError: error)
+        }
+
+        do {
+            try xml.xmlString.write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            throw LocalizationError.fileWriteFailed(path: url.path, underlyingError: error)
+        }
     }
 
     /// Executes the template creation task.
-    func run() {
-        copyEnLocaleToTemplates()
-        try! handleXML()
+    /// - Throws: `LocalizationError` if any step fails
+    func run() throws {
+        try copyEnLocaleToTemplates()
+        try handleXML()
     }
 }

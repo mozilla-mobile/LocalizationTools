@@ -104,30 +104,61 @@ struct ImportTask {
     ///
     /// - Parameter locale: The Pontoon locale code (e.g., "ga", "fr")
     /// - Returns: URL to the XLIFF file inside the created .xcloc bundle
-    func createXcloc(locale: String) -> URL {
+    /// - Throws: `LocalizationError` if file operations fail
+    func createXcloc(locale: String) throws -> URL {
         let source = URL(fileURLWithPath: "\(l10nRepoPath)/\(locale)/firefox-ios.xliff")
-        let locale = LOCALE_MAPPING[locale] ?? locale
+        let mappedLocale = LOCALE_MAPPING[locale] ?? locale
         let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("temp.xliff")
-        let destination = temporaryDir.appendingPathComponent("\(locale).xcloc/Localized Contents/\(locale).xliff")
-        let sourceContentsDestination = temporaryDir.appendingPathComponent("\(locale).xcloc/Source Contents/temp.txt")
-        let manifestDestination = temporaryDir.appendingPathComponent("\(locale).xcloc/contents.json")
+        let destination = temporaryDir.appendingPathComponent("\(mappedLocale).xcloc/Localized Contents/\(mappedLocale).xliff")
+        let sourceContentsDestination = temporaryDir.appendingPathComponent("\(mappedLocale).xcloc/Source Contents/temp.txt")
+        let manifestDestination = temporaryDir.appendingPathComponent("\(mappedLocale).xcloc/contents.json")
 
         let fileExists = FileManager.default.fileExists(atPath: tmp.path)
         let destinationExists = FileManager.default.fileExists(atPath: destination.deletingLastPathComponent().path)
 
         if fileExists {
-            try! FileManager.default.removeItem(at: tmp)
+            do {
+                try FileManager.default.removeItem(at: tmp)
+            } catch {
+                throw LocalizationError.fileDeleteFailed(path: tmp.path, underlyingError: error)
+            }
         }
 
-        try! FileManager.default.copyItem(at: source, to: tmp)
+        do {
+            try FileManager.default.copyItem(at: source, to: tmp)
+        } catch {
+            throw LocalizationError.fileCopyFailed(source: source.path, destination: tmp.path, underlyingError: error)
+        }
 
         if !destinationExists {
-            try! FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
-            try! FileManager.default.createDirectory(at: sourceContentsDestination, withIntermediateDirectories: true)
+            do {
+                try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+            } catch {
+                throw LocalizationError.directoryCreationFailed(path: destination.deletingLastPathComponent().path, underlyingError: error)
+            }
+            do {
+                try FileManager.default.createDirectory(at: sourceContentsDestination.deletingLastPathComponent(), withIntermediateDirectories: true)
+            } catch {
+                throw LocalizationError.directoryCreationFailed(path: sourceContentsDestination.deletingLastPathComponent().path, underlyingError: error)
+            }
         }
 
-        try! generateManifest(LOCALE_MAPPING[locale] ?? locale).write(to: manifestDestination, atomically: true, encoding: .utf8)
-        return try! FileManager.default.replaceItemAt(destination, withItemAt: tmp)!
+        do {
+            try generateManifest(mappedLocale).write(to: manifestDestination, atomically: true, encoding: .utf8)
+        } catch {
+            throw LocalizationError.fileWriteFailed(path: manifestDestination.path, underlyingError: error)
+        }
+
+        do {
+            guard let result = try FileManager.default.replaceItemAt(destination, withItemAt: tmp) else {
+                throw LocalizationError.fileReplaceFailed(path: destination.path, underlyingError: NSError(domain: "LocalizationTools", code: 1, userInfo: [NSLocalizedDescriptionKey: "replaceItemAt returned nil"]))
+            }
+            return result
+        } catch let error as LocalizationError {
+            throw error
+        } catch {
+            throw LocalizationError.fileReplaceFailed(path: destination.path, underlyingError: error)
+        }
     }
 
     /// Validates and transforms the XLIFF XML before import.
@@ -141,10 +172,23 @@ struct ImportTask {
     /// - Parameters:
     ///   - fileUrl: Path to the XLIFF file to validate
     ///   - locale: The Pontoon locale code for this file
-    func validateXml(fileUrl: URL, locale: String) {
-        let xml = try! XMLDocument(contentsOf: fileUrl, options: .nodePreserveWhitespace)
+    /// - Throws: `LocalizationError` if XML parsing or file operations fail
+    func validateXml(fileUrl: URL, locale: String) throws {
+        let xml: XMLDocument
+        do {
+            xml = try XMLDocument(contentsOf: fileUrl, options: .nodePreserveWhitespace)
+        } catch {
+            throw LocalizationError.xmlParsingFailed(path: fileUrl.path, underlyingError: error)
+        }
+
         guard let root = xml.rootElement() else { return }
-        let fileNodes =  try! root.nodes(forXPath: "file")
+
+        let fileNodes: [XMLNode]
+        do {
+            fileNodes = try root.nodes(forXPath: "file")
+        } catch {
+            throw LocalizationError.xpathQueryFailed(xpath: "file", underlyingError: error)
+        }
 
         for case let fileNode as XMLElement in fileNodes {
             if let xcodeLocale = LOCALE_MAPPING[locale] {
@@ -152,63 +196,88 @@ struct ImportTask {
             }
 
             let fileOriginal = fileNode.attribute(forName: "original")?.stringValue ?? ""
-            let isActionExtensionFile = fileOriginal.contains("Extensions/ActionExtension") && 
+            let isActionExtensionFile = fileOriginal.contains("Extensions/ActionExtension") &&
                                        fileOriginal.contains("InfoPlist.strings")
-            
-            var translations = try! fileNode.nodes(forXPath: "body/trans-unit")
+
+            var translations: [XMLNode]
+            do {
+                translations = try fileNode.nodes(forXPath: "body/trans-unit")
+            } catch {
+                throw LocalizationError.xpathQueryFailed(xpath: "body/trans-unit", underlyingError: error)
+            }
+
             for case let translation as XMLElement in translations {
                 let translationId = translation.attribute(forName: "id")?.stringValue
-                
+
                 let shouldExclude: Bool
                 if let id = translationId, id == "CFBundleDisplayName" && isActionExtensionFile {
                     shouldExclude = false
                 } else {
                     shouldExclude = translationId.map(EXCLUDED_TRANSLATIONS.contains) == true
                 }
-                
+
                 if shouldExclude {
                     translation.detach()
                 }
                 if translation.attribute(forName: "id")?.stringValue.map(REQUIRED_TRANSLATIONS.contains) == true {
-                    let nodes = try! translation.nodes(forXPath: "target")
-                    let source = try! translation.nodes(forXPath: "source").first!.stringValue ?? ""
+                    let nodes = (try? translation.nodes(forXPath: "target")) ?? []
+                    let source = ((try? translation.nodes(forXPath: "source").first)?.stringValue) ?? ""
                     if nodes.isEmpty {
                         let element = XMLNode.element(withName: "target", stringValue: source) as! XMLNode
                         translation.insertChild(element, at: 1)
                     }
                 }
             }
-            translations = try! fileNode.nodes(forXPath: "body/trans-unit")
+
+            do {
+                translations = try fileNode.nodes(forXPath: "body/trans-unit")
+            } catch {
+                throw LocalizationError.xpathQueryFailed(xpath: "body/trans-unit", underlyingError: error)
+            }
+
             if translations.isEmpty {
                 fileNode.detach()
             }
         }
 
-        try! xml.xmlString(options: .nodePrettyPrint).write(to: fileUrl, atomically: true, encoding: .utf16)
+        do {
+            try xml.xmlString(options: .nodePrettyPrint).write(to: fileUrl, atomically: true, encoding: .utf16)
+        } catch {
+            throw LocalizationError.fileWriteFailed(path: fileUrl.path, underlyingError: error)
+        }
     }
 
     /// Runs xcodebuild to import the .xcloc bundle into the Xcode project.
     /// - Parameter xclocPath: Path to the .xcloc bundle directory
-    private func importLocale(xclocPath: URL) {
+    /// - Throws: `LocalizationError.processExecutionFailed` if xcodebuild fails to start
+    private func importLocale(xclocPath: URL) throws {
         let command = "xcodebuild -importLocalizations -project \(xcodeProjPath) -localizationPath \(xclocPath.path)"
 
         let task = Process()
         task.launchPath = "/bin/sh"
         task.arguments = ["-c", command]
-        try! task.run()
+        do {
+            try task.run()
+        } catch {
+            throw LocalizationError.processExecutionFailed(command: "xcodebuild -importLocalizations", underlyingError: error)
+        }
         task.waitUntilExit()
     }
 
     /// Processes a single locale: creates xcloc, validates XML, and imports into Xcode.
     /// - Parameter locale: The Pontoon locale code to process
-    private func prepareLocale(locale: String) {
-        let xliffUrl = createXcloc(locale: locale)
-        validateXml(fileUrl: xliffUrl, locale: locale)
-        importLocale(xclocPath: xliffUrl.deletingLastPathComponent().deletingLastPathComponent())
+    /// - Throws: `LocalizationError` if any step fails
+    private func prepareLocale(locale: String) throws {
+        let xliffUrl = try createXcloc(locale: locale)
+        try validateXml(fileUrl: xliffUrl, locale: locale)
+        try importLocale(xclocPath: xliffUrl.deletingLastPathComponent().deletingLastPathComponent())
     }
 
     /// Executes the import task for all configured locales.
-    func run() {
-        locales.forEach(prepareLocale(locale:))
+    /// - Throws: `LocalizationError` if processing any locale fails
+    func run() throws {
+        for locale in locales {
+            try prepareLocale(locale: locale)
+        }
     }
 }

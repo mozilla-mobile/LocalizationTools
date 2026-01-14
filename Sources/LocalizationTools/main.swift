@@ -60,28 +60,40 @@ struct LocalizationTools: ParsableCommand {
         if localeCode != nil {
             locales = [ localeCode! ]
         } else {
-            let directoryContent = try FileManager.default.contentsOfDirectory(at: URL(fileURLWithPath: l10nProjectPath), includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
-            let folders = directoryContent.filter{ $0.hasDirectoryPath }
-            locales = []
-            for f in folders {
-                locales.append(f.pathComponents.last!)
+            do {
+                let directoryContent = try FileManager.default.contentsOfDirectory(at: URL(fileURLWithPath: l10nProjectPath), includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
+                let folders = directoryContent.filter{ $0.hasDirectoryPath }
+                locales = []
+                for f in folders {
+                    locales.append(f.pathComponents.last!)
+                }
+                locales = locales.filter{ $0 != "templates" }
+                locales.sort()
+            } catch {
+                throw LocalizationError.directoryListingFailed(path: l10nProjectPath, underlyingError: error)
             }
-            locales = locales.filter{ $0 != "templates" }
-            locales.sort()
         }
 
         if runImportTask {
-            ImportTask(xcodeProjPath: projectPath, l10nRepoPath: l10nProjectPath, locales: locales).run()
+            try ImportTask(xcodeProjPath: projectPath, l10nRepoPath: l10nProjectPath, locales: locales).run()
         }
 
         if runExportTask {
-            ExportTask(xcodeProjPath: projectPath, l10nRepoPath: l10nProjectPath, locales: locales).run()
-			/// Don't extract templates if only one locale was requested
-			if localeCode == nil {
-            	CreateTemplatesTask(l10nRepoPath: l10nProjectPath).run()
-			}
+            try ExportTask(xcodeProjPath: projectPath, l10nRepoPath: l10nProjectPath, locales: locales).run()
+            /// Don't extract templates if only one locale was requested
+            if localeCode == nil {
+                try CreateTemplatesTask(l10nRepoPath: l10nProjectPath).run()
+            }
         }
     }
 }
 
-LocalizationTools.main()
+do {
+    var command = try LocalizationTools.parseAsRoot()
+    try command.run()
+} catch let error as LocalizationError {
+    print("Error: \(error)")
+    LocalizationTools.exit(withError: error)
+} catch {
+    LocalizationTools.exit(withError: error)
+}
