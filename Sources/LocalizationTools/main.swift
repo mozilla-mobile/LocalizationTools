@@ -5,6 +5,14 @@
 import Foundation
 import ArgumentParser
 
+/// Command-line interface for automating localization workflows in Mozilla iOS projects.
+///
+/// This tool provides two main operations:
+/// - **Export**: Extracts localizable strings from an Xcode project to xliff files for translation
+/// - **Import**: Imports translated xliff files back into the Xcode project
+///
+/// Locales are automatically discovered from subdirectories in the l10n repository path,
+/// or a single locale can be specified with the `--locale` flag.
 struct LocalizationTools: ParsableCommand {
     @Option(help: "Path to the project")
     var projectPath: String
@@ -26,6 +34,8 @@ struct LocalizationTools: ParsableCommand {
 
     }
 
+    /// Validates that exactly one task flag (--export or --import) is specified.
+    /// - Returns: `true` if arguments are valid, `false` otherwise
     private func validateArguments() -> Bool {
         switch (runExportTask, runImportTask) {
         case (false, false):
@@ -38,6 +48,10 @@ struct LocalizationTools: ParsableCommand {
         }
     }
 
+    /// Main entry point that orchestrates the localization workflow.
+    ///
+    /// Discovers locales from the l10n repository (or uses a single specified locale),
+    /// then executes the requested import or export task.
     mutating func run() throws {
         guard validateArguments() else { Self.exit() }
 
