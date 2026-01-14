@@ -21,37 +21,12 @@ struct ExportTask {
     private let queue = DispatchQueue(label: "backgroundQueue", attributes: .concurrent)
     private let group = DispatchGroup()
 
-    /// Translation keys that should be removed from exports (not exposed to localizers).
-    private let EXCLUDED_TRANSLATIONS: Set<String> = [
-        "CFBundleName",
-        "CFBundleDisplayName",
-        "CFBundleShortVersionString",
-        "1Password Fill Browser Action"
-    ]
-
-    /// Files where CFBundleDisplayName is allowed (exception to EXCLUDED_TRANSLATIONS).
-    private let ALLOWED_CFBUNDLE_DISPLAY_NAME_FILES: Set<String> = ["ActionExtension"]
-
-    /// Maps Xcode locale codes to Pontoon locale codes for the l10n repository.
-    /// This is the inverse of ImportTask's mapping.
-    private let LOCALE_MAPPING = [
-        "ga" : "ga-IE",
-        "nb" : "nb-NO",
-        "nn" : "nn-NO",
-        "sv" : "sv-SE",
-        "fil" : "tl",
-        "sat-Olck" : "sat",
-    ]
-
-    /// Temporary directory where xcodebuild exports localization files.
-    private let EXPORT_BASE_PATH = "/tmp/ios-localization"
-
-
     /// Runs xcodebuild to export localizations for all configured locales.
-    /// Exports are written to EXPORT_BASE_PATH as .xcloc bundles.
+    /// Exports are written to the temporary export path as .xcloc bundles.
     /// - Throws: `LocalizationError.processExecutionFailed` if xcodebuild fails to start
     private func exportLocales() throws {
-        let command = "xcodebuild -exportLocalizations -project \(xcodeProjPath) -localizationPath \(EXPORT_BASE_PATH)"
+        let exportPath = LocalizationConstants.exportBasePath
+        let command = "xcodebuild -exportLocalizations -project \(xcodeProjPath) -localizationPath \(exportPath)"
         let command2 = locales.map { "-exportLanguage \($0)" }.joined(separator: " ")
 
         let task = Process()
@@ -78,7 +53,7 @@ struct ExportTask {
     private func handleXML(
         path: String,
         locale: String,
-        commentOverrides: [String : String]
+        commentOverrides: [String: String]
     ) throws {
         let url = URL(fileURLWithPath: path.appending("/\(locale).xcloc/Localized Contents/\(locale).xliff"))
 
@@ -99,13 +74,13 @@ struct ExportTask {
         }
 
         for case let fileNode as XMLElement in fileNodes {
-            if let xcodeLocale = LOCALE_MAPPING[locale] {
-                fileNode.attribute(forName: "target-language")?.setStringValue(xcodeLocale, resolvingEntities: false)
+            // Update target-language if this locale has a Pontoon mapping
+            if let pontoonLocale = LocaleMapping.pontoonMapping(forXcode: locale) {
+                fileNode.attribute(forName: "target-language")?.setStringValue(pontoonLocale, resolvingEntities: false)
             }
 
             let fileOriginal = fileNode.attribute(forName: "original")?.stringValue ?? ""
-            let isActionExtensionFile = fileOriginal.contains("Extensions/ActionExtension") &&
-                                       fileOriginal.contains("InfoPlist.strings")
+            let isActionExtensionFile = LocalizationConstants.isActionExtensionFile(fileOriginal)
 
             let translations: [XMLNode]
             do {
@@ -117,12 +92,11 @@ struct ExportTask {
             for case let translation as XMLElement in translations {
                 let translationId = translation.attribute(forName: "id")?.stringValue
 
-                let shouldExclude: Bool
-                if let id = translationId, id == "CFBundleDisplayName" && isActionExtensionFile {
-                    shouldExclude = false
-                } else {
-                    shouldExclude = translationId.map(EXCLUDED_TRANSLATIONS.contains) == true
-                }
+                let shouldExclude = LocalizationConstants.shouldExcludeTranslation(
+                    translationId,
+                    isActionExtensionFile: isActionExtensionFile,
+                    excludedSet: LocalizationConstants.allExportExcludedTranslations
+                )
 
                 if shouldExclude {
                     translation.detach()
@@ -162,14 +136,10 @@ struct ExportTask {
     /// - Parameter locale: The Xcode locale code of the file to copy
     /// - Throws: `LocalizationError.fileReplaceFailed` if the file copy fails
     private func copyToL10NRepo(locale: String) throws {
-        let source = URL(fileURLWithPath: "\(EXPORT_BASE_PATH)/\(locale).xcloc/Localized Contents/\(locale).xliff")
-        let l10nLocale: String
-        if locale == "en" {
-            l10nLocale = "en-US"
-        } else {
-            l10nLocale = LOCALE_MAPPING[locale] ?? locale
-        }
-        let destination = URL(fileURLWithPath: "\(l10nRepoPath)/\(l10nLocale)/firefox-ios.xliff")
+        let exportPath = LocalizationConstants.exportBasePath
+        let source = URL(fileURLWithPath: "\(exportPath)/\(locale).xcloc/Localized Contents/\(locale).xliff")
+        let l10nLocale = LocaleMapping.toPontoon(locale)
+        let destination = URL(fileURLWithPath: "\(l10nRepoPath)/\(l10nLocale)/\(LocalizationConstants.xliffFilename)")
         do {
             _ = try FileManager.default.replaceItemAt(destination, withItemAt: source)
         } catch {
@@ -188,9 +158,9 @@ struct ExportTask {
         let commentOverrideURL = URL(fileURLWithPath: xcodeProjPath)
             .deletingLastPathComponent()
             .appendingPathComponent("l10n_comments.txt")
-        let commentOverrides: [String : String] = (try? String(contentsOf: commentOverrideURL))?
+        let commentOverrides: [String: String] = (try? String(contentsOf: commentOverrideURL))?
             .split(whereSeparator: \.isNewline)
-            .reduce(into: [String : String]()) { result, item in
+            .reduce(into: [String: String]()) { result, item in
                 let items = item.split(separator: "=")
                 guard let key = items.first, let value = items.last else { return }
                 result[String(key)] = String(value)
@@ -205,7 +175,11 @@ struct ExportTask {
             queue.async {
                 defer { group.leave() }
                 do {
-                    try handleXML(path: EXPORT_BASE_PATH, locale: locale, commentOverrides: commentOverrides)
+                    try handleXML(
+                        path: LocalizationConstants.exportBasePath,
+                        locale: locale,
+                        commentOverrides: commentOverrides
+                    )
                     try copyToL10NRepo(locale: locale)
                 } catch let error as LocalizationError {
                     errorsLock.lock()

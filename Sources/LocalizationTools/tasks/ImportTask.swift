@@ -32,7 +32,7 @@ private let generateManifest: (String) -> String = { targetLocale in
 /// 3. Running `xcodebuild -importLocalizations` to apply translations to the project
 ///
 /// Key behaviors:
-/// - Maps Pontoon locale codes to Xcode locale codes (e.g., "ga" → "ga-IE")
+/// - Maps Pontoon locale codes to Xcode locale codes (e.g., "ga-IE" → "ga")
 /// - Removes excluded translation keys that shouldn't be localized
 /// - Ensures required translations exist (falls back to source text if missing)
 struct ImportTask {
@@ -41,54 +41,6 @@ struct ImportTask {
     let locales: [String]
 
     private let temporaryDir = FileManager.default.temporaryDirectory.appendingPathComponent("locales_to_import")
-
-    /// Maps Pontoon locale codes to Xcode locale codes.
-    /// During import, XLIFF files use Pontoon codes but Xcode expects its own codes.
-    private let LOCALE_MAPPING = [
-        "ga-IE": "ga",
-        "nb-NO": "nb",
-        "nn-NO": "nn",
-        "sv-SE": "sv",
-        "tl"   : "fil",
-        "sat"  : "sat-Olck",
-        "zgh"  : "tzm",
-    ]
-
-    /// Translation keys that should be removed during import (not exposed to localizers).
-    private let EXCLUDED_TRANSLATIONS: Set<String> = ["CFBundleName", "CFBundleDisplayName", "CFBundleShortVersionString"]
-
-    /// Files where CFBundleDisplayName is allowed (exception to EXCLUDED_TRANSLATIONS).
-    private let ALLOWED_CFBUNDLE_DISPLAY_NAME_FILES: Set<String> = ["ActionExtension"]
-
-    /// Translation keys that must have a target value. If missing, the source text is used.
-    /// Required for: privacy permission strings (app crashes without them), WidgetKit (App Store requirement).
-    private let REQUIRED_TRANSLATIONS: Set<String> = [
-        /// Client/Info.plist
-        "NSCameraUsageDescription",
-        "NSLocationWhenInUseUsageDescription",
-        "NSMicrophoneUsageDescription",
-        "NSPhotoLibraryAddUsageDescription",
-        "ShortcutItemTitleNewPrivateTab",
-        "ShortcutItemTitleNewTab",
-        "ShortcutItemTitleQRCode",
-        /// WidgetKit/en-US.lproj/WidgetIntents.strings
-		"2GqvPe",
-		"ctDNmu",
-		"eHmH1H",
-		"eqyNJg",
-		"eV8mOT",
-		"fi3W24-2GqvPe",
-		"fi3W24-eHmH1H",
-		"fi3W24-scEmjs",
-		"fi3W24-xRJbBP",
-		"PzSrmZ-2GqvPe",
-		"PzSrmZ-eHmH1H",
-		"PzSrmZ-scEmjs",
-		"PzSrmZ-xRJbBP",
-		"scEmjs",
-		"w9jdPK",
-		"xRJbBP",
-    ]
 
     /// Creates an .xcloc bundle from an XLIFF file in the l10n repository.
     ///
@@ -102,12 +54,12 @@ struct ImportTask {
     ///     └── temp.txt            (placeholder for source files)
     /// ```
     ///
-    /// - Parameter locale: The Pontoon locale code (e.g., "ga", "fr")
+    /// - Parameter locale: The Pontoon locale code (e.g., "ga-IE", "fr")
     /// - Returns: URL to the XLIFF file inside the created .xcloc bundle
     /// - Throws: `LocalizationError` if file operations fail
     func createXcloc(locale: String) throws -> URL {
-        let source = URL(fileURLWithPath: "\(l10nRepoPath)/\(locale)/firefox-ios.xliff")
-        let mappedLocale = LOCALE_MAPPING[locale] ?? locale
+        let source = URL(fileURLWithPath: "\(l10nRepoPath)/\(locale)/\(LocalizationConstants.xliffFilename)")
+        let mappedLocale = LocaleMapping.toXcode(locale)
         let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("temp.xliff")
         let destination = temporaryDir.appendingPathComponent("\(mappedLocale).xcloc/Localized Contents/\(mappedLocale).xliff")
         let sourceContentsDestination = temporaryDir.appendingPathComponent("\(mappedLocale).xcloc/Source Contents/temp.txt")
@@ -132,14 +84,26 @@ struct ImportTask {
 
         if !destinationExists {
             do {
-                try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try FileManager.default.createDirectory(
+                    at: destination.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
             } catch {
-                throw LocalizationError.directoryCreationFailed(path: destination.deletingLastPathComponent().path, underlyingError: error)
+                throw LocalizationError.directoryCreationFailed(
+                    path: destination.deletingLastPathComponent().path,
+                    underlyingError: error
+                )
             }
             do {
-                try FileManager.default.createDirectory(at: sourceContentsDestination.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try FileManager.default.createDirectory(
+                    at: sourceContentsDestination.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
             } catch {
-                throw LocalizationError.directoryCreationFailed(path: sourceContentsDestination.deletingLastPathComponent().path, underlyingError: error)
+                throw LocalizationError.directoryCreationFailed(
+                    path: sourceContentsDestination.deletingLastPathComponent().path,
+                    underlyingError: error
+                )
             }
         }
 
@@ -151,7 +115,14 @@ struct ImportTask {
 
         do {
             guard let result = try FileManager.default.replaceItemAt(destination, withItemAt: tmp) else {
-                throw LocalizationError.fileReplaceFailed(path: destination.path, underlyingError: NSError(domain: "LocalizationTools", code: 1, userInfo: [NSLocalizedDescriptionKey: "replaceItemAt returned nil"]))
+                throw LocalizationError.fileReplaceFailed(
+                    path: destination.path,
+                    underlyingError: NSError(
+                        domain: "LocalizationTools",
+                        code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: "replaceItemAt returned nil"]
+                    )
+                )
             }
             return result
         } catch let error as LocalizationError {
@@ -191,13 +162,13 @@ struct ImportTask {
         }
 
         for case let fileNode as XMLElement in fileNodes {
-            if let xcodeLocale = LOCALE_MAPPING[locale] {
+            // Update target-language if this locale has an Xcode mapping
+            if let xcodeLocale = LocaleMapping.xcodeMapping(forPontoon: locale) {
                 fileNode.attribute(forName: "target-language")?.setStringValue(xcodeLocale, resolvingEntities: false)
             }
 
             let fileOriginal = fileNode.attribute(forName: "original")?.stringValue ?? ""
-            let isActionExtensionFile = fileOriginal.contains("Extensions/ActionExtension") &&
-                                       fileOriginal.contains("InfoPlist.strings")
+            let isActionExtensionFile = LocalizationConstants.isActionExtensionFile(fileOriginal)
 
             var translations: [XMLNode]
             do {
@@ -209,17 +180,18 @@ struct ImportTask {
             for case let translation as XMLElement in translations {
                 let translationId = translation.attribute(forName: "id")?.stringValue
 
-                let shouldExclude: Bool
-                if let id = translationId, id == "CFBundleDisplayName" && isActionExtensionFile {
-                    shouldExclude = false
-                } else {
-                    shouldExclude = translationId.map(EXCLUDED_TRANSLATIONS.contains) == true
-                }
+                let shouldExclude = LocalizationConstants.shouldExcludeTranslation(
+                    translationId,
+                    isActionExtensionFile: isActionExtensionFile,
+                    excludedSet: LocalizationConstants.excludedTranslations
+                )
 
                 if shouldExclude {
                     translation.detach()
                 }
-                if translation.attribute(forName: "id")?.stringValue.map(REQUIRED_TRANSLATIONS.contains) == true {
+
+                // Add fallback target for required translations if missing
+                if let id = translationId, LocalizationConstants.requiredTranslations.contains(id) {
                     let nodes = (try? translation.nodes(forXPath: "target")) ?? []
                     let source = ((try? translation.nodes(forXPath: "source").first)?.stringValue) ?? ""
                     if nodes.isEmpty {
@@ -259,7 +231,10 @@ struct ImportTask {
         do {
             try task.run()
         } catch {
-            throw LocalizationError.processExecutionFailed(command: "xcodebuild -importLocalizations", underlyingError: error)
+            throw LocalizationError.processExecutionFailed(
+                command: "xcodebuild -importLocalizations",
+                underlyingError: error
+            )
         }
         task.waitUntilExit()
     }
