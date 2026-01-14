@@ -4,12 +4,12 @@
 
 import Foundation
 
-/// Exports localizable strings from an Xcode project to xliff files for translation.
+/// Exports localizable strings from an Xcode project to XLIFF files for translation.
 ///
 /// The export process involves:
 /// 1. Running `xcodebuild -exportLocalizations` to extract strings from the project
-/// 2. Processing the xliff XML (locale mapping, filtering excluded keys, applying comment overrides)
-/// 3. Copying the processed xliff files to the l10n repository
+/// 2. Processing the XLIFF XML (locale mapping, filtering excluded keys, applying comment overrides)
+/// 3. Copying the processed XLIFF files to the l10n repository
 ///
 /// Processing is performed concurrently using a dispatch queue for better performance.
 struct ExportTask {
@@ -56,7 +56,7 @@ struct ExportTask {
         task.waitUntilExit()
     }
 
-    /// Processes an exported xliff file: filters excluded keys and applies comment overrides.
+    /// Processes an exported XLIFF file: filters excluded keys and applies comment overrides.
     ///
     /// - Parameters:
     ///   - path: Base path where .xcloc bundles were exported
@@ -109,7 +109,7 @@ struct ExportTask {
     }
 
 
-    /// Copies a processed xliff file to the l10n repository.
+    /// Copies a processed XLIFF file to the l10n repository.
     ///
     /// Handles locale code mapping (e.g., "en" → "en-US", "ga" → "ga-IE") to match
     /// the directory structure expected by the l10n repository.

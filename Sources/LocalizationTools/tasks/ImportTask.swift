@@ -24,10 +24,10 @@ private let generateManifest: (String) -> String = { targetLocale in
     """
 }
 
-/// Imports translated xliff files from the l10n repository into an Xcode project.
+/// Imports translated XLIFF files from the l10n repository into an Xcode project.
 ///
 /// The import process involves:
-/// 1. Creating .xcloc bundles (Apple's localization catalog format) from xliff files
+/// 1. Creating .xcloc bundles (Apple's localization catalog format) from XLIFF files
 /// 2. Validating and transforming the XML (locale mapping, filtering, required translations)
 /// 3. Running `xcodebuild -importLocalizations` to apply translations to the project
 ///
@@ -43,7 +43,7 @@ struct ImportTask {
     private let temporaryDir = FileManager.default.temporaryDirectory.appendingPathComponent("locales_to_import")
 
     /// Maps Pontoon locale codes to Xcode locale codes.
-    /// During import, xliff files use Pontoon codes but Xcode expects its own codes.
+    /// During import, XLIFF files use Pontoon codes but Xcode expects its own codes.
     private let LOCALE_MAPPING = [
         "ga-IE": "ga",
         "nb-NO": "nb",
@@ -90,7 +90,7 @@ struct ImportTask {
 		"xRJbBP",
     ]
 
-    /// Creates an .xcloc bundle from an xliff file in the l10n repository.
+    /// Creates an .xcloc bundle from an XLIFF file in the l10n repository.
     ///
     /// An .xcloc bundle is Apple's Xcode Localization Catalog format with this structure:
     /// ```
@@ -103,7 +103,7 @@ struct ImportTask {
     /// ```
     ///
     /// - Parameter locale: The Pontoon locale code (e.g., "ga", "fr")
-    /// - Returns: URL to the xliff file inside the created .xcloc bundle
+    /// - Returns: URL to the XLIFF file inside the created .xcloc bundle
     func createXcloc(locale: String) -> URL {
         let source = URL(fileURLWithPath: "\(l10nRepoPath)/\(locale)/firefox-ios.xliff")
         let locale = LOCALE_MAPPING[locale] ?? locale
@@ -130,7 +130,7 @@ struct ImportTask {
         return try! FileManager.default.replaceItemAt(destination, withItemAt: tmp)!
     }
 
-    /// Validates and transforms the xliff XML before import.
+    /// Validates and transforms the XLIFF XML before import.
     ///
     /// This method performs several transformations:
     /// 1. Updates the target-language attribute to use Xcode locale codes
@@ -139,7 +139,7 @@ struct ImportTask {
     /// 4. Removes empty file nodes (those with no remaining trans-units)
     ///
     /// - Parameters:
-    ///   - fileUrl: Path to the xliff file to validate
+    ///   - fileUrl: Path to the XLIFF file to validate
     ///   - locale: The Pontoon locale code for this file
     func validateXml(fileUrl: URL, locale: String) {
         let xml = try! XMLDocument(contentsOf: fileUrl, options: .nodePreserveWhitespace)

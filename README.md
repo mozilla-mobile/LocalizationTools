@@ -1,6 +1,6 @@
 # LocalizationTools
 
-LocalizationTools is a Swift CLI that automates localization workflows for Mozilla iOS projects (Firefox iOS). It handles exporting strings from Xcode projects to xliff format for translation, and importing translated xliff files back into projects.
+LocalizationTools is a Swift CLI that automates localization workflows for Mozilla iOS projects (Firefox/Focus iOS). It handles exporting strings from Xcode projects to XLIFF format for translation, and importing translated XLIFF files back into projects.
 
 ## Build and Run Commands
 
@@ -24,9 +24,9 @@ swift test
 The CLI is built with Swift ArgumentParser and organized into three task classes:
 
 - **main.swift**: CLI entry point, argument parsing, locale discovery from l10n repo directories
-- **ImportTask**: Converts xliff → .xcloc format, validates XML, applies locale mappings, runs `xcodebuild -importLocalizations`
+- **ImportTask**: Converts XLIFF → .xcloc format, validates XML, applies locale mappings, runs `xcodebuild -importLocalizations`
 - **ExportTask**: Runs `xcodebuild -exportLocalizations`, filters excluded keys, applies comment overrides from `l10n_comments.txt`, copies to l10n repo
-- **CreateTemplatesTask**: Generates template xliff files for localization teams (strips target translations)
+- **CreateTemplatesTask**: Generates template XLIFF files for localization teams (strips target translations)
 
 ## Key Concepts
 
@@ -36,4 +36,4 @@ The CLI is built with Swift ArgumentParser and organized into three task classes
 
 **Required Keys**: Keys that must have translations during import (privacy descriptions, shortcut items, WidgetIntents strings).
 
-**l10n_comments.txt**: Optional file in project parent directory to override xliff comment text. Format: `KEY_ID=Comment text`
+**l10n_comments.txt**: Optional file in project parent directory to override XLIFF comment text. Format: `KEY_ID=Comment text`
