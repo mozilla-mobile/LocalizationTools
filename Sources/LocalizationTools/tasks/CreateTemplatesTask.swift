@@ -4,15 +4,15 @@
 
 import Foundation
 
-/// Creates template xliff files for localization teams to use as a starting point.
+/// Creates template XLIFF files for localization teams to use as a starting point.
 ///
-/// Templates are based on the en-US xliff but with target translations and
+/// Templates are based on the en-US XLIFF but with target translations and
 /// target-language attributes removed. This provides translators with a clean
 /// file containing only source strings and notes.
 struct CreateTemplatesTask {
     let l10nRepoPath: String
 
-    /// Copies the en-US xliff file to the templates directory.
+    /// Copies the en-US XLIFF file to the templates directory.
     private func copyEnLocaleToTemplates() {
         let source = URL(fileURLWithPath: "\(l10nRepoPath)/en-US/firefox-ios.xliff")
         let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("temp.xliff")
@@ -21,7 +21,7 @@ struct CreateTemplatesTask {
         _ = try! FileManager.default.replaceItemAt(destination, withItemAt: tmp)
     }
 
-    /// Removes target-language attributes and target elements from the template xliff.
+    /// Removes target-language attributes and target elements from the template XLIFF.
     ///
     /// This transforms the file from a completed translation to a blank template:
     /// - Removes `target-language` attribute from each `<file>` element

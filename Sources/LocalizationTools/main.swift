@@ -8,8 +8,8 @@ import ArgumentParser
 /// Command-line interface for automating localization workflows in Mozilla iOS projects.
 ///
 /// This tool provides two main operations:
-/// - **Export**: Extracts localizable strings from an Xcode project to xliff files for translation
-/// - **Import**: Imports translated xliff files back into the Xcode project
+/// - **Export**: Extracts localizable strings from an Xcode project to XLIFF files for translation
+/// - **Import**: Imports translated XLIFF files back into the Xcode project
 ///
 /// Locales are automatically discovered from subdirectories in the l10n repository path,
 /// or a single locale can be specified with the `--locale` flag.
