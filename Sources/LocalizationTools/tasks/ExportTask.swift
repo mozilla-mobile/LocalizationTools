@@ -4,18 +4,31 @@
 
 import Foundation
 
+/// Exports localizable strings from an Xcode project to XLIFF files for translation.
+///
+/// The export process involves:
+/// 1. Running `xcodebuild -exportLocalizations` to extract strings from the project
+/// 2. Processing the XLIFF XML (locale mapping, filtering excluded keys, applying comment overrides)
+/// 3. Copying the processed XLIFF files to the l10n repository
+///
+/// Processing is performed concurrently using a dispatch queue for better performance.
 struct ExportTask {
     let xcodeProjPath: String
     let l10nRepoPath: String
     let locales: [String]
 
+    /// Concurrent queue for parallel processing of multiple locales.
     private let queue = DispatchQueue(label: "backgroundQueue", attributes: .concurrent)
     private let group = DispatchGroup()
 
+    /// Translation keys that should be removed from exports (not exposed to localizers).
     private let EXCLUDED_TRANSLATIONS: Set<String> = ["CFBundleName", "CFBundleDisplayName", "CFBundleShortVersionString", "1Password Fill Browser Action"]
+
+    /// Files where CFBundleDisplayName is allowed (exception to EXCLUDED_TRANSLATIONS).
     private let ALLOWED_CFBUNDLE_DISPLAY_NAME_FILES: Set<String> = ["ActionExtension"]
 
-    /// This dictionary holds locale mappings between `[PontoonLocaleCode: XCodeLocaleCode]`.
+    /// Maps Xcode locale codes to Pontoon locale codes for the l10n repository.
+    /// This is the inverse of ImportTask's mapping.
     private let LOCALE_MAPPING = [
         "ga" : "ga-IE",
         "nb" : "nb-NO",
@@ -25,9 +38,12 @@ struct ExportTask {
         "sat-Olck" : "sat",
     ]
 
+    /// Temporary directory where xcodebuild exports localization files.
     private let EXPORT_BASE_PATH = "/tmp/ios-localization"
 
 
+    /// Runs xcodebuild to export localizations for all configured locales.
+    /// Exports are written to EXPORT_BASE_PATH as .xcloc bundles.
     private func exportLocales() {
         let command = "xcodebuild -exportLocalizations -project \(xcodeProjPath) -localizationPath \(EXPORT_BASE_PATH)"
         let command2 = locales
@@ -40,6 +56,12 @@ struct ExportTask {
         task.waitUntilExit()
     }
 
+    /// Processes an exported XLIFF file: filters excluded keys and applies comment overrides.
+    ///
+    /// - Parameters:
+    ///   - path: Base path where .xcloc bundles were exported
+    ///   - locale: The locale code being processed
+    ///   - commentOverrides: Dictionary of translation ID → custom comment text
     private func handleXML(path: String, locale: String, commentOverrides: [String : String]) {
         let url = URL(fileURLWithPath: path.appending("/\(locale).xcloc/Localized Contents/\(locale).xliff"))
         let xml = try! XMLDocument(contentsOf: url, options: [.nodePreserveWhitespace, .nodeCompactEmptyElement])
@@ -87,6 +109,12 @@ struct ExportTask {
     }
 
 
+    /// Copies a processed XLIFF file to the l10n repository.
+    ///
+    /// Handles locale code mapping (e.g., "en" → "en-US", "ga" → "ga-IE") to match
+    /// the directory structure expected by the l10n repository.
+    ///
+    /// - Parameter locale: The Xcode locale code of the file to copy
     private func copyToL10NRepo(locale: String) {
         let source = URL(fileURLWithPath: "\(EXPORT_BASE_PATH)/\(locale).xcloc/Localized Contents/\(locale).xliff")
         let l10nLocale: String
@@ -100,6 +128,10 @@ struct ExportTask {
     }
 
 
+    /// Executes the export task: exports from Xcode, processes XML, and copies to l10n repo.
+    ///
+    /// Comment overrides are loaded from `l10n_comments.txt` in the project's parent directory.
+    /// Format: `TRANSLATION_ID=Custom comment text` (one per line).
     func run() {
         exportLocales()
         let commentOverrideURL = URL(fileURLWithPath: xcodeProjPath).deletingLastPathComponent().appendingPathComponent("l10n_comments.txt")
