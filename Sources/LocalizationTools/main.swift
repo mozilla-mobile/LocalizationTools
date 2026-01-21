@@ -29,6 +29,21 @@ struct LocalizationTools: ParsableCommand {
     @Flag(name: .customLong("import"), help: "To determine if we should run the import task.")
     var runImportTask = false
 
+    @Option(name: .customLong("xliff-name"), help: "XLIFF filename (default: firefox-ios.xliff)")
+    var xliffName: String = "firefox-ios.xliff"
+
+    @Option(name: .customLong("development-region"), help: "Development region for xcloc manifest (default: en-US)")
+    var developmentRegion: String = "en-US"
+
+    @Option(name: .customLong("project-name"), help: "Project name for xcloc manifest (default: Client.xcodeproj)")
+    var projectName: String = "Client.xcodeproj"
+
+    @Flag(name: .customLong("skip-widget-kit"), help: "Exclude WidgetKit strings from required translations")
+    var skipWidgetKit: Bool = false
+
+    @Option(name: .customLong("export-base-path"), help: "Base path for export temp files (default: /tmp/ios-localization)")
+    var exportBasePath: String = "/tmp/ios-localization"
+
     static var configuration: CommandConfiguration {
         CommandConfiguration(commandName: "l10nTools", abstract: "Scripts for automating l10n for Mozilla iOS projects.", discussion: "", version: "1.0", shouldDisplay: true, subcommands: [], defaultSubcommand: nil, helpNames: .long)
 
@@ -75,14 +90,28 @@ struct LocalizationTools: ParsableCommand {
         }
 
         if runImportTask {
-            try ImportTask(xcodeProjPath: projectPath, l10nRepoPath: l10nProjectPath, locales: locales).run()
+            try ImportTask(
+                xcodeProjPath: projectPath,
+                l10nRepoPath: l10nProjectPath,
+                locales: locales,
+                xliffName: xliffName,
+                developmentRegion: developmentRegion,
+                projectName: projectName,
+                skipWidgetKit: skipWidgetKit
+            ).run()
         }
 
         if runExportTask {
-            try ExportTask(xcodeProjPath: projectPath, l10nRepoPath: l10nProjectPath, locales: locales).run()
+            try ExportTask(
+                xcodeProjPath: projectPath,
+                l10nRepoPath: l10nProjectPath,
+                locales: locales,
+                xliffName: xliffName,
+                exportBasePath: exportBasePath
+            ).run()
             /// Don't extract templates if only one locale was requested
             if localeCode == nil {
-                try CreateTemplatesTask(l10nRepoPath: l10nProjectPath).run()
+                try CreateTemplatesTask(l10nRepoPath: l10nProjectPath, xliffName: xliffName).run()
             }
         }
     }

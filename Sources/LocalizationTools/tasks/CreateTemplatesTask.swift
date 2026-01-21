@@ -11,13 +11,14 @@ import Foundation
 /// file containing only source strings and notes.
 struct CreateTemplatesTask {
     let l10nRepoPath: String
+    let xliffName: String
 
     /// Copies the en-US XLIFF file to the templates directory.
     /// - Throws: `LocalizationError` if file operations fail
     private func copyEnLocaleToTemplates() throws {
-        let source = URL(fileURLWithPath: "\(l10nRepoPath)/en-US/firefox-ios.xliff")
+        let source = URL(fileURLWithPath: "\(l10nRepoPath)/en-US/\(xliffName)")
         let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("temp.xliff")
-        let destination = URL(fileURLWithPath: "\(l10nRepoPath)/templates/firefox-ios.xliff")
+        let destination = URL(fileURLWithPath: "\(l10nRepoPath)/templates/\(xliffName)")
 
         do {
             try FileManager.default.copyItem(at: source, to: tmp)
@@ -39,7 +40,7 @@ struct CreateTemplatesTask {
     /// - Removes all `<target>` elements, leaving only `<source>` and `<note>`
     /// - Throws: `LocalizationError` if XML parsing or file operations fail
     private func handleXML() throws {
-        let url = URL(fileURLWithPath: "\(l10nRepoPath)/templates/firefox-ios.xliff")
+        let url = URL(fileURLWithPath: "\(l10nRepoPath)/templates/\(xliffName)")
 
         let xml: XMLDocument
         do {

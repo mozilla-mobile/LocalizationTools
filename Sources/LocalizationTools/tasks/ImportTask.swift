@@ -4,26 +4,6 @@
 
 import Foundation
 
-/// Generates the contents.json manifest required inside an .xcloc bundle.
-/// - Parameter targetLocale: The Xcode locale code (e.g., "fr", "ga-IE")
-/// - Returns: JSON string conforming to Apple's xcloc manifest format
-private let generateManifest: (String) -> String = { targetLocale in
-    return """
-        {
-          "developmentRegion" : "en-US",
-          "project" : "Client.xcodeproj",
-          "targetLocale" : "\(targetLocale)",
-          "toolInfo" : {
-            "toolBuildNumber" : "13A233",
-            "toolID" : "com.apple.dt.xcode",
-            "toolName" : "Xcode",
-            "toolVersion" : "13.0"
-          },
-          "version" : "1.0"
-        }
-    """
-}
-
 /// Imports translated XLIFF files from the l10n repository into an Xcode project.
 ///
 /// The import process involves:
@@ -39,6 +19,10 @@ struct ImportTask {
     let xcodeProjPath: String
     let l10nRepoPath: String
     let locales: [String]
+    let xliffName: String
+    let developmentRegion: String
+    let projectName: String
+    let skipWidgetKit: Bool
 
     private let temporaryDir = FileManager.default.temporaryDirectory.appendingPathComponent("locales_to_import")
 
@@ -60,9 +44,9 @@ struct ImportTask {
     /// Files where CFBundleDisplayName is allowed (exception to EXCLUDED_TRANSLATIONS).
     private let ALLOWED_CFBUNDLE_DISPLAY_NAME_FILES: Set<String> = ["ActionExtension"]
 
-    /// Translation keys that must have a target value. If missing, the source text is used.
-    /// Required for: privacy permission strings (app crashes without them), WidgetKit (App Store requirement).
-    private let REQUIRED_TRANSLATIONS: Set<String> = [
+    /// Base translation keys that must have a target value. If missing, the source text is used.
+    /// Required for: privacy permission strings (app crashes without them).
+    private let BASE_REQUIRED_TRANSLATIONS: Set<String> = [
         /// Client/Info.plist
         "NSCameraUsageDescription",
         "NSLocationWhenInUseUsageDescription",
@@ -71,24 +55,59 @@ struct ImportTask {
         "ShortcutItemTitleNewPrivateTab",
         "ShortcutItemTitleNewTab",
         "ShortcutItemTitleQRCode",
-        /// WidgetKit/en-US.lproj/WidgetIntents.strings
-		"2GqvPe",
-		"ctDNmu",
-		"eHmH1H",
-		"eqyNJg",
-		"eV8mOT",
-		"fi3W24-2GqvPe",
-		"fi3W24-eHmH1H",
-		"fi3W24-scEmjs",
-		"fi3W24-xRJbBP",
-		"PzSrmZ-2GqvPe",
-		"PzSrmZ-eHmH1H",
-		"PzSrmZ-scEmjs",
-		"PzSrmZ-xRJbBP",
-		"scEmjs",
-		"w9jdPK",
-		"xRJbBP",
     ]
+
+    /// WidgetKit translation keys (App Store requirement for Firefox).
+    private let WIDGET_KIT_TRANSLATIONS: Set<String> = [
+        "2GqvPe",
+        "ctDNmu",
+        "eHmH1H",
+        "eqyNJg",
+        "eV8mOT",
+        "fi3W24-2GqvPe",
+        "fi3W24-eHmH1H",
+        "fi3W24-scEmjs",
+        "fi3W24-xRJbBP",
+        "PzSrmZ-2GqvPe",
+        "PzSrmZ-eHmH1H",
+        "PzSrmZ-scEmjs",
+        "PzSrmZ-xRJbBP",
+        "scEmjs",
+        "w9jdPK",
+        "xRJbBP",
+    ]
+
+    /// Computed property that returns all required translations based on configuration.
+    private var REQUIRED_TRANSLATIONS: Set<String> {
+        if skipWidgetKit {
+            return BASE_REQUIRED_TRANSLATIONS
+        } else {
+            return BASE_REQUIRED_TRANSLATIONS.union(WIDGET_KIT_TRANSLATIONS)
+        }
+    }
+
+    /// Generates the contents.json manifest required inside an .xcloc bundle.
+    /// - Parameters:
+    ///   - targetLocale: The Xcode locale code (e.g., "fr", "ga-IE")
+    ///   - developmentRegion: The development region (e.g., "en-US", "en")
+    ///   - projectName: The Xcode project name (e.g., "Client.xcodeproj")
+    /// - Returns: JSON string conforming to Apple's xcloc manifest format
+    private func generateManifest(targetLocale: String, developmentRegion: String, projectName: String) -> String {
+        return """
+            {
+              "developmentRegion" : "\(developmentRegion)",
+              "project" : "\(projectName)",
+              "targetLocale" : "\(targetLocale)",
+              "toolInfo" : {
+                "toolBuildNumber" : "13A233",
+                "toolID" : "com.apple.dt.xcode",
+                "toolName" : "Xcode",
+                "toolVersion" : "13.0"
+              },
+              "version" : "1.0"
+            }
+        """
+    }
 
     /// Creates an .xcloc bundle from an XLIFF file in the l10n repository.
     ///
@@ -106,7 +125,7 @@ struct ImportTask {
     /// - Returns: URL to the XLIFF file inside the created .xcloc bundle
     /// - Throws: `LocalizationError` if file operations fail
     func createXcloc(locale: String) throws -> URL {
-        let source = URL(fileURLWithPath: "\(l10nRepoPath)/\(locale)/firefox-ios.xliff")
+        let source = URL(fileURLWithPath: "\(l10nRepoPath)/\(locale)/\(xliffName)")
         let mappedLocale = LOCALE_MAPPING[locale] ?? locale
         let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("temp.xliff")
         let destination = temporaryDir.appendingPathComponent("\(mappedLocale).xcloc/Localized Contents/\(mappedLocale).xliff")
@@ -144,7 +163,7 @@ struct ImportTask {
         }
 
         do {
-            try generateManifest(mappedLocale).write(to: manifestDestination, atomically: true, encoding: .utf8)
+            try generateManifest(targetLocale: mappedLocale, developmentRegion: developmentRegion, projectName: projectName).write(to: manifestDestination, atomically: true, encoding: .utf8)
         } catch {
             throw LocalizationError.fileWriteFailed(path: manifestDestination.path, underlyingError: error)
         }

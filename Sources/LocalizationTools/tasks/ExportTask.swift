@@ -16,6 +16,8 @@ struct ExportTask {
     let xcodeProjPath: String
     let l10nRepoPath: String
     let locales: [String]
+    let xliffName: String
+    let exportBasePath: String
 
     /// Concurrent queue for parallel processing of multiple locales.
     private let queue = DispatchQueue(label: "backgroundQueue", attributes: .concurrent)
@@ -43,15 +45,11 @@ struct ExportTask {
         "sat-Olck" : "sat",
     ]
 
-    /// Temporary directory where xcodebuild exports localization files.
-    private let EXPORT_BASE_PATH = "/tmp/ios-localization"
-
-
     /// Runs xcodebuild to export localizations for all configured locales.
-    /// Exports are written to EXPORT_BASE_PATH as .xcloc bundles.
+    /// Exports are written to exportBasePath as .xcloc bundles.
     /// - Throws: `LocalizationError.processExecutionFailed` if xcodebuild fails to start
     private func exportLocales() throws {
-        let command = "xcodebuild -exportLocalizations -project \(xcodeProjPath) -localizationPath \(EXPORT_BASE_PATH)"
+        let command = "xcodebuild -exportLocalizations -project \(xcodeProjPath) -localizationPath \(exportBasePath)"
         let command2 = locales.map { "-exportLanguage \($0)" }.joined(separator: " ")
 
         let task = Process()
@@ -162,14 +160,14 @@ struct ExportTask {
     /// - Parameter locale: The Xcode locale code of the file to copy
     /// - Throws: `LocalizationError.fileReplaceFailed` if the file copy fails
     private func copyToL10NRepo(locale: String) throws {
-        let source = URL(fileURLWithPath: "\(EXPORT_BASE_PATH)/\(locale).xcloc/Localized Contents/\(locale).xliff")
+        let source = URL(fileURLWithPath: "\(exportBasePath)/\(locale).xcloc/Localized Contents/\(locale).xliff")
         let l10nLocale: String
         if locale == "en" {
             l10nLocale = "en-US"
         } else {
             l10nLocale = LOCALE_MAPPING[locale] ?? locale
         }
-        let destination = URL(fileURLWithPath: "\(l10nRepoPath)/\(l10nLocale)/firefox-ios.xliff")
+        let destination = URL(fileURLWithPath: "\(l10nRepoPath)/\(l10nLocale)/\(xliffName)")
         do {
             _ = try FileManager.default.replaceItemAt(destination, withItemAt: source)
         } catch {
@@ -205,7 +203,7 @@ struct ExportTask {
             queue.async {
                 defer { group.leave() }
                 do {
-                    try handleXML(path: EXPORT_BASE_PATH, locale: locale, commentOverrides: commentOverrides)
+                    try handleXML(path: exportBasePath, locale: locale, commentOverrides: commentOverrides)
                     try copyToL10NRepo(locale: locale)
                 } catch let error as LocalizationError {
                     errorsLock.lock()
