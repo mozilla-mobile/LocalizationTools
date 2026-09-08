@@ -26,7 +26,6 @@ The CLI is built with Swift ArgumentParser and organized into three task classes
 - **main.swift**: CLI entry point, argument parsing, locale discovery from l10n repo directories
 - **ImportTask**: Converts XLIFF → .xcloc format, validates XML, applies locale mappings, runs `xcodebuild -importLocalizations`
 - **ExportTask**: Runs `xcodebuild -exportLocalizations`, filters excluded keys, applies comment overrides from `l10n_comments.txt`, copies to l10n repo
-- **CreateTemplatesTask**: Generates template XLIFF files for localization teams (strips target translations)
 
 ## Key Concepts
 

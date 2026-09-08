@@ -109,10 +109,6 @@ struct LocalizationTools: ParsableCommand {
                 xliffName: xliffName,
                 exportBasePath: exportBasePath
             ).run()
-            /// Don't extract templates if only one locale was requested
-            if localeCode == nil {
-                try CreateTemplatesTask(l10nRepoPath: l10nProjectPath, xliffName: xliffName).run()
-            }
         }
     }
 }
